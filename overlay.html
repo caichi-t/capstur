@@ -50,7 +50,8 @@
             transform: translateX(-50%);
             display: none;
             gap: 12px;
-            z-index: 1001;
+            z-index: 10000;
+            pointer-events: auto;
         }
         
         .capture-btn {
@@ -64,6 +65,9 @@
             cursor: pointer;
             transition: all 0.2s ease;
             backdrop-filter: blur(10px);
+            z-index: 10001;
+            position: relative;
+            pointer-events: auto;
         }
         
         .capture-btn:hover {
@@ -118,10 +122,19 @@
         
         // Wait for Tauri API to be available
         window.addEventListener('DOMContentLoaded', async () => {
+            console.log('DOM Content Loaded');
             if (!window.__TAURI__) {
                 console.error('Tauri API not available');
                 return;
             }
+            console.log('Tauri API is available');
+            console.log('Window dimensions:', window.innerWidth, 'x', window.innerHeight);
+        });
+        
+        // Also log when the window is fully loaded
+        window.addEventListener('load', () => {
+            console.log('Overlay window fully loaded');
+            console.log('All elements initialized');
         });
         
         function updateSelection() {
@@ -143,50 +156,147 @@
             return { x: left, y: top, width, height };
         }
         
-        document.addEventListener('mousedown', (e) => {
-            isSelecting = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            endX = e.clientX;
-            endY = e.clientY;
+        function setupEventHandlers() {
+            console.log('Setting up event handlers...');
             
-            selectionBox.style.display = 'block';
-            infoPanel.style.display = 'block';
-            captureControls.style.display = 'none';
-            
-            updateSelection();
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (isSelecting) {
+            document.addEventListener('mousedown', (e) => {
+                // Don't start selection if clicking on buttons or controls
+                if (e.target.closest('.capture-controls') || 
+                    e.target.closest('button') || 
+                    e.target.tagName === 'BUTTON') {
+                    console.log('Mouse down on control element, ignoring');
+                    return;
+                }
+                
+                console.log('Mouse down:', e.clientX, e.clientY);
+                isSelecting = true;
+                startX = e.clientX;
+                startY = e.clientY;
                 endX = e.clientX;
                 endY = e.clientY;
-                updateSelection();
-            }
-        });
-        
-        document.addEventListener('mouseup', (e) => {
-            if (isSelecting) {
-                isSelecting = false;
-                const selection = updateSelection();
                 
-                if (selection.width > 10 && selection.height > 10) {
-                    captureControls.style.display = 'flex';
-                } else {
-                    // Reset selection if too small
-                    selectionBox.style.display = 'none';
-                    infoPanel.style.display = 'none';
+                selectionBox.style.display = 'block';
+                infoPanel.style.display = 'block';
+                captureControls.style.display = 'none';
+                
+                updateSelection();
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (isSelecting) {
+                    console.log('Mouse move:', e.clientX, e.clientY);
+                    endX = e.clientX;
+                    endY = e.clientY;
+                    updateSelection();
                 }
-            }
-        });
+            });
+            
+            document.addEventListener('mouseup', (e) => {
+                // Don't handle mouseup if it's on a control element
+                if (e.target.closest('.capture-controls') || 
+                    e.target.closest('button') || 
+                    e.target.tagName === 'BUTTON') {
+                    console.log('Mouse up on control element, ignoring');
+                    return;
+                }
+                
+                console.log('Mouse up:', e.clientX, e.clientY);
+                if (isSelecting) {
+                    isSelecting = false;
+                    const selection = updateSelection();
+                    console.log('Final selection:', selection);
+                    
+                    if (selection.width > 10 && selection.height > 10) {
+                        captureControls.style.display = 'flex';
+                        console.log('Showing capture controls');
+                    } else {
+                        // Reset selection if too small
+                        selectionBox.style.display = 'none';
+                        infoPanel.style.display = 'none';
+                        console.log('Selection too small, hiding controls');
+                    }
+                }
+            });
+            
+            // Add touch support for tablets/touchscreens
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    console.log('Touch start:', touch.clientX, touch.clientY);
+                    isSelecting = true;
+                    startX = touch.clientX;
+                    startY = touch.clientY;
+                    endX = touch.clientX;
+                    endY = touch.clientY;
+                    
+                    selectionBox.style.display = 'block';
+                    infoPanel.style.display = 'block';
+                    captureControls.style.display = 'none';
+                    
+                    updateSelection();
+                    e.preventDefault();
+                }
+            });
+            
+            document.addEventListener('touchmove', (e) => {
+                if (isSelecting && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    console.log('Touch move:', touch.clientX, touch.clientY);
+                    endX = touch.clientX;
+                    endY = touch.clientY;
+                    updateSelection();
+                    e.preventDefault();
+                }
+            });
+            
+            document.addEventListener('touchend', (e) => {
+                console.log('Touch end');
+                if (isSelecting) {
+                    isSelecting = false;
+                    const selection = updateSelection();
+                    console.log('Final touch selection:', selection);
+                    
+                    if (selection.width > 10 && selection.height > 10) {
+                        captureControls.style.display = 'flex';
+                        console.log('Showing capture controls');
+                    } else {
+                        selectionBox.style.display = 'none';
+                        infoPanel.style.display = 'none';
+                        console.log('Selection too small, hiding controls');
+                    }
+                }
+            });
+        }
         
-        captureBtn.addEventListener('click', async () => {
+        // Initialize event handlers
+        setupEventHandlers();
+        
+        captureBtn.addEventListener('click', async (e) => {
+            console.log('=== CAPTURE BUTTON CLICKED ===');
+            e.stopPropagation();
+            e.preventDefault();
+            
             const selection = updateSelection();
+            console.log('Capture button clicked, selection:', selection);
             
             if (selection.width > 10 && selection.height > 10) {
+                // Show visual feedback
+                captureBtn.textContent = 'キャプチャ中...';
+                captureBtn.disabled = true;
+                
                 try {
-                    console.log('Capturing region:', selection);
-                    await window.__TAURI__.core.invoke('capture_region', {
+                    console.log('Starting capture with region:', selection);
+                    
+                    // Hide the overlay window before capturing
+                    console.log('Hiding overlay for capture...');
+                    await window.__TAURI__.core.invoke('hide_overlay_window');
+                    
+                    // Wait a moment for the window to fully hide
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // Perform the capture
+                    const result = await window.__TAURI__.core.invoke('capture_region', {
                         region: {
                             x: Math.floor(selection.x),
                             y: Math.floor(selection.y),
@@ -195,16 +305,45 @@
                         }
                     });
                     
-                    // Close overlay after successful capture
+                    console.log('Capture successful, result:', result);
+                    
+                    // Close the overlay window after successful capture
+                    console.log('Closing overlay window...');
                     await window.__TAURI__.core.invoke('close_overlay_window');
+                    console.log('Overlay window closed');
+                    
                 } catch (error) {
                     console.error('Failed to capture region:', error);
+                    
+                    // Show the overlay again if there was an error
+                    try {
+                        await window.__TAURI__.core.invoke('show_overlay_window');
+                    } catch (showError) {
+                        console.error('Failed to show overlay after error:', showError);
+                    }
+                    
+                    captureBtn.textContent = 'エラー';
+                    captureBtn.style.background = '#EF4444';
                     alert('キャプチャに失敗しました: ' + error);
+                    
+                    // Reset button after error
+                    setTimeout(() => {
+                        captureBtn.textContent = 'キャプチャ';
+                        captureBtn.style.background = '#007AFF';
+                        captureBtn.disabled = false;
+                    }, 2000);
                 }
+            } else {
+                console.log('Selection too small, not capturing');
+                alert('選択範囲が小さすぎます。もう少し大きな範囲を選択してください。');
             }
         });
         
-        cancelBtn.addEventListener('click', async () => {
+        cancelBtn.addEventListener('click', async (e) => {
+            console.log('=== CANCEL BUTTON CLICKED ===');
+            e.stopPropagation();
+            e.preventDefault();
+            
             try {
                 await window.__TAURI__.core.invoke('close_overlay_window');
             } catch (error) {

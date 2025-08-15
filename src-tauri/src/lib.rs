@@ -45,8 +45,14 @@ async fn capture_region(
     app_handle: AppHandle,
     region: CaptureRegion,
 ) -> Result<ScreenshotData, String> {
+    println!("Received capture_region command: {:?}", region);
+    
     let screenshot = capture_screen_region(region.x, region.y, region.width, region.height)
-        .map_err(|e| format!("Failed to capture region: {}", e))?;
+        .map_err(|e| {
+            let error_msg = format!("Failed to capture region: {}", e);
+            println!("Capture error: {}", error_msg);
+            error_msg
+        })?;
     
     let id = Uuid::new_v4().to_string();
     let timestamp = std::time::SystemTime::now()
@@ -66,13 +72,21 @@ async fn capture_region(
     };
     
     let screenshots: tauri::State<Screenshots> = app_handle.state();
-    screenshots.lock().unwrap().insert(id, screenshot_data.clone());
+    screenshots.lock().unwrap().insert(id.clone(), screenshot_data.clone());
+    println!("Stored screenshot with ID: {}", id);
     
     // Notify the main window that a new screenshot was captured
     if let Some(main_window) = app_handle.get_webview_window("main") {
-        let _ = main_window.emit("screenshot-captured", &screenshot_data);
+        println!("Emitting screenshot-captured event to main window");
+        match main_window.emit("screenshot-captured", &screenshot_data) {
+            Ok(_) => println!("Event emitted successfully"),
+            Err(e) => println!("Failed to emit event: {}", e),
+        }
+    } else {
+        println!("Main window not found!");
     }
     
+    println!("Returning screenshot data: {}", screenshot_data.id);
     Ok(screenshot_data)
 }
 
@@ -80,7 +94,9 @@ async fn capture_region(
 async fn get_screenshots(app_handle: AppHandle) -> Result<Vec<ScreenshotData>, String> {
     let screenshots: tauri::State<Screenshots> = app_handle.state();
     let screenshots = screenshots.lock().unwrap();
-    Ok(screenshots.values().cloned().collect())
+    let result: Vec<ScreenshotData> = screenshots.values().cloned().collect();
+    println!("get_screenshots returning {} items", result.len());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -116,11 +132,73 @@ async fn compose_screenshots(
 }
 
 #[tauri::command]
+async fn hide_overlay_window(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(overlay_window) = app_handle.get_webview_window("overlay") {
+        overlay_window.hide().map_err(|e| e.to_string())?;
+        println!("Overlay window hidden");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn show_overlay_window(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(overlay_window) = app_handle.get_webview_window("overlay") {
+        overlay_window.show().map_err(|e| e.to_string())?;
+        println!("Overlay window shown");
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn close_overlay_window(app_handle: AppHandle) -> Result<(), String> {
     if let Some(overlay_window) = app_handle.get_webview_window("overlay") {
         overlay_window.close().map_err(|e| e.to_string())?;
+        println!("Overlay window closed");
     }
     Ok(())
+}
+
+#[tauri::command]
+async fn test_screen_capture() -> Result<String, String> {
+    println!("Testing basic screen capture...");
+    
+    match capture_full_screen() {
+        Ok(_image) => {
+            println!("Full screen capture successful!");
+            Ok("Screen capture test successful".to_string())
+        }
+        Err(e) => {
+            let error_msg = format!("Screen capture test failed: {}", e);
+            println!("{}", error_msg);
+            Err(error_msg)
+        }
+    }
+}
+
+#[tauri::command]
+async fn test_region_capture(app_handle: AppHandle) -> Result<String, String> {
+    println!("Testing region capture with fixed coordinates...");
+    
+    // Test with a small fixed region (100x100 at position 100,100)
+    let test_region = CaptureRegion {
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 200,
+    };
+    
+    match capture_region(app_handle, test_region).await {
+        Ok(screenshot_data) => {
+            let msg = format!("Region capture test successful! Screenshot ID: {}", screenshot_data.id);
+            println!("{}", msg);
+            Ok(msg)
+        }
+        Err(e) => {
+            let error_msg = format!("Region capture test failed: {}", e);
+            println!("{}", error_msg);
+            Err(error_msg)
+        }
+    }
 }
 
 #[tauri::command]
@@ -136,11 +214,15 @@ pub fn run() {
         .manage(Screenshots::default())
         .invoke_handler(tauri::generate_handler![
             greet,
+            test_screen_capture,
+            test_region_capture,
             start_region_capture,
             capture_region,
             get_screenshots,
             delete_screenshot,
             compose_screenshots,
+            hide_overlay_window,
+            show_overlay_window,
             close_overlay_window
         ])
         .run(tauri::generate_context!())

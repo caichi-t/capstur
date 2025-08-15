@@ -28,7 +28,9 @@ function App() {
 
   const loadScreenshots = async () => {
     try {
+      console.log("Loading screenshots...");
       const result = await invoke<ScreenshotData[]>("get_screenshots");
+      console.log("Loaded screenshots:", result.length, "items");
       setScreenshots(result);
     } catch (error) {
       console.error("Failed to load screenshots:", error);
@@ -39,7 +41,8 @@ function App() {
     loadScreenshots();
     
     // Listen for screenshot capture events
-    const unlisten = listen<ScreenshotData>("screenshot-captured", () => {
+    const unlisten = listen<ScreenshotData>("screenshot-captured", (event) => {
+      console.log("Received screenshot-captured event:", event.payload);
       loadScreenshots();
     });
     
@@ -114,13 +117,46 @@ function App() {
         </header>
 
         {/* Quick Capture Button */}
-        <div className="mb-8">
+        <div className="mb-8 space-x-4">
           <button
             onClick={handleStartCapture}
             disabled={isCapturing}
             className="btn-primary text-lg px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCapturing ? "キャプチャ中..." : "📷 範囲選択キャプチャ"}
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                const result = await invoke<string>("test_screen_capture");
+                alert("テスト成功: " + result);
+              } catch (error) {
+                alert("テスト失敗: " + error);
+              }
+            }}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg"
+          >
+            🧪 スクリーンキャプチャテスト
+          </button>
+          <button
+            onClick={loadScreenshots}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg"
+          >
+            🔄 リスト更新
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                const result = await invoke<string>("test_region_capture");
+                alert("テスト成功: " + result);
+                await loadScreenshots();
+              } catch (error) {
+                alert("テスト失敗: " + error);
+              }
+            }}
+            className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg"
+          >
+            🎯 領域キャプチャテスト
           </button>
         </div>
 
