@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -67,6 +67,11 @@ async fn capture_region(
     
     let screenshots: tauri::State<Screenshots> = app_handle.state();
     screenshots.lock().unwrap().insert(id, screenshot_data.clone());
+    
+    // Notify the main window that a new screenshot was captured
+    if let Some(main_window) = app_handle.get_webview_window("main") {
+        let _ = main_window.emit("screenshot-captured", &screenshot_data);
+    }
     
     Ok(screenshot_data)
 }

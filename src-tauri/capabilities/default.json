@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for the main window and overlay",
+  "windows": ["main", "overlay"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -18,6 +18,11 @@
     "core:window:allow-set-position",
     "core:window:allow-set-size",
     "core:window:allow-start-dragging",
-    "core:path:default"
+    "core:window:allow-set-focus",
+    "core:window:allow-request-user-attention",
+    "core:app:allow-app-show",
+    "core:app:allow-app-hide",
+    "core:path:default",
+    "core:event:default"
   ]
 }

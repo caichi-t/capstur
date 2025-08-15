@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 import ScreenshotManager from "./components/ScreenshotManager";
 import CompositionPanel from "./components/CompositionPanel";
@@ -36,6 +37,15 @@ function App() {
 
   useEffect(() => {
     loadScreenshots();
+    
+    // Listen for screenshot capture events
+    const unlisten = listen<ScreenshotData>("screenshot-captured", () => {
+      loadScreenshots();
+    });
+    
+    return () => {
+      unlisten.then(f => f());
+    };
   }, []);
 
   const handleStartCapture = async () => {
@@ -47,8 +57,6 @@ function App() {
       alert("キャプチャの開始に失敗しました: " + error);
     } finally {
       setIsCapturing(false);
-      // Reload screenshots after capture
-      setTimeout(loadScreenshots, 1000);
     }
   };
 

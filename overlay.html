@@ -108,8 +108,6 @@
     </div>
 
     <script>
-        const { invoke } = window.__TAURI__.core;
-        
         let isSelecting = false;
         let startX, startY, endX, endY;
         let selectionBox = document.getElementById('selectionBox');
@@ -117,6 +115,14 @@
         let captureControls = document.getElementById('captureControls');
         let captureBtn = document.getElementById('captureBtn');
         let cancelBtn = document.getElementById('cancelBtn');
+        
+        // Wait for Tauri API to be available
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!window.__TAURI__) {
+                console.error('Tauri API not available');
+                return;
+            }
+        });
         
         function updateSelection() {
             const left = Math.min(startX, endX);
@@ -179,17 +185,18 @@
             
             if (selection.width > 10 && selection.height > 10) {
                 try {
-                    await invoke('capture_region', {
+                    console.log('Capturing region:', selection);
+                    await window.__TAURI__.core.invoke('capture_region', {
                         region: {
-                            x: selection.x,
-                            y: selection.y,
-                            width: selection.width,
-                            height: selection.height
+                            x: Math.floor(selection.x),
+                            y: Math.floor(selection.y),
+                            width: Math.floor(selection.width),
+                            height: Math.floor(selection.height)
                         }
                     });
                     
                     // Close overlay after successful capture
-                    await invoke('close_overlay_window');
+                    await window.__TAURI__.core.invoke('close_overlay_window');
                 } catch (error) {
                     console.error('Failed to capture region:', error);
                     alert('キャプチャに失敗しました: ' + error);
@@ -198,13 +205,21 @@
         });
         
         cancelBtn.addEventListener('click', async () => {
-            await invoke('close_overlay_window');
+            try {
+                await window.__TAURI__.core.invoke('close_overlay_window');
+            } catch (error) {
+                console.error('Failed to close overlay:', error);
+            }
         });
         
         // ESC key to cancel
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                invoke('close_overlay_window');
+                try {
+                    window.__TAURI__.core.invoke('close_overlay_window');
+                } catch (error) {
+                    console.error('Failed to close overlay:', error);
+                }
             }
         });
     </script>
