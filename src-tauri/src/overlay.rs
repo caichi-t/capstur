@@ -28,8 +28,8 @@ pub async fn create_overlay_window(app_handle: &AppHandle) -> Result<()> {
     .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
-    .fullscreen(false)
-    // Enable devtools for debugging
+    .fullscreen(true)
+    .visible(false)
     .build()?;
     
     // Show the overlay window
