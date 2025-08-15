@@ -76,16 +76,22 @@ function App() {
   };
 
   const handleComposeImages = async (layout: string) => {
+    console.log("Starting image composition...");
+    console.log("Selected screenshots:", selectedScreenshots);
+    console.log("Layout:", layout);
+    
     if (selectedScreenshots.length === 0) {
       alert("合成するスクリーンショットを選択してください");
       return;
     }
 
     try {
+      console.log("Calling compose_screenshots command...");
       const result = await invoke<string>("compose_screenshots", {
-        screenshot_ids: selectedScreenshots,
+        screenshotIds: selectedScreenshots,
         layout,
       });
+      console.log("Composition successful, result length:", result.length);
       setComposedImage(result);
     } catch (error) {
       console.error("Failed to compose images:", error);

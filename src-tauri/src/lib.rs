@@ -113,22 +113,59 @@ async fn compose_screenshots(
     screenshot_ids: Vec<String>,
     layout: String,
 ) -> Result<String, String> {
+    println!("Starting image composition...");
+    println!("Selected screenshot IDs: {:?}", screenshot_ids);
+    println!("Layout: {}", layout);
+    
     let screenshots: tauri::State<Screenshots> = app_handle.state();
     let screenshots = screenshots.lock().unwrap();
     
+    println!("Total screenshots in storage: {}", screenshots.len());
+    
     let images: Vec<_> = screenshot_ids
         .iter()
-        .filter_map(|id| screenshots.get(id))
+        .filter_map(|id| {
+            if let Some(screenshot) = screenshots.get(id) {
+                println!("Found screenshot: {} ({}x{})", id, screenshot.width, screenshot.height);
+                Some(screenshot)
+            } else {
+                println!("Screenshot not found: {}", id);
+                None
+            }
+        })
         .collect();
     
     if images.is_empty() {
-        return Err("No screenshots selected".to_string());
+        let error_msg = format!("No screenshots found for composition. Selected IDs: {:?}, Available IDs: {:?}", 
+                               screenshot_ids, screenshots.keys().collect::<Vec<_>>());
+        println!("{}", error_msg);
+        return Err(error_msg);
     }
     
-    let composed_image = compose_images(images, &layout)?;
-    let base64_data = image_to_base64(&composed_image)?;
+    println!("Composing {} images with layout: {}", images.len(), layout);
     
-    Ok(base64_data)
+    match compose_images(images, &layout) {
+        Ok(composed_image) => {
+            println!("Image composition successful: {}x{}", composed_image.width(), composed_image.height());
+            
+            match image_to_base64(&composed_image) {
+                Ok(base64_data) => {
+                    println!("Base64 conversion successful, length: {}", base64_data.len());
+                    Ok(base64_data)
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to convert composed image to base64: {}", e);
+                    println!("{}", error_msg);
+                    Err(error_msg)
+                }
+            }
+        }
+        Err(e) => {
+            let error_msg = format!("Image composition failed: {}", e);
+            println!("{}", error_msg);
+            Err(error_msg)
+        }
+    }
 }
 
 #[tauri::command]
