@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Capture Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: rgba(0, 0, 0, 0.3);
+            cursor: crosshair;
+            overflow: hidden;
+            user-select: none;
+            width: 100vw;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .selection-box {
+            position: absolute;
+            border: 2px solid #007AFF;
+            background: rgba(0, 122, 255, 0.1);
+            box-shadow: 0 0 20px rgba(0, 122, 255, 0.3);
+            pointer-events: none;
+            display: none;
+        }
+        
+        .info-panel {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            display: none;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        .capture-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            gap: 12px;
+            z-index: 1001;
+        }
+        
+        .capture-btn {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .capture-btn:hover {
+            background: #0056CC;
+            transform: scale(1.05);
+        }
+        
+        .capture-btn.cancel {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .capture-btn.cancel:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .instructions {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        ドラッグしてキャプチャする範囲を選択してください
+    </div>
+    
+    <div class="selection-box" id="selectionBox"></div>
+    <div class="info-panel" id="infoPanel"></div>
+    
+    <div class="capture-controls" id="captureControls">
+        <button class="capture-btn" id="captureBtn">キャプチャ</button>
+        <button class="capture-btn cancel" id="cancelBtn">キャンセル</button>
+    </div>
+
+    <script>
+        const { invoke } = window.__TAURI__.core;
+        
+        let isSelecting = false;
+        let startX, startY, endX, endY;
+        let selectionBox = document.getElementById('selectionBox');
+        let infoPanel = document.getElementById('infoPanel');
+        let captureControls = document.getElementById('captureControls');
+        let captureBtn = document.getElementById('captureBtn');
+        let cancelBtn = document.getElementById('cancelBtn');
+        
+        function updateSelection() {
+            const left = Math.min(startX, endX);
+            const top = Math.min(startY, endY);
+            const width = Math.abs(endX - startX);
+            const height = Math.abs(endY - startY);
+            
+            selectionBox.style.left = left + 'px';
+            selectionBox.style.top = top + 'px';
+            selectionBox.style.width = width + 'px';
+            selectionBox.style.height = height + 'px';
+            
+            // Update info panel
+            infoPanel.textContent = `${width} × ${height} px`;
+            infoPanel.style.left = Math.min(endX + 10, window.innerWidth - infoPanel.offsetWidth) + 'px';
+            infoPanel.style.top = Math.max(endY - 30, 0) + 'px';
+            
+            return { x: left, y: top, width, height };
+        }
+        
+        document.addEventListener('mousedown', (e) => {
+            isSelecting = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            endX = e.clientX;
+            endY = e.clientY;
+            
+            selectionBox.style.display = 'block';
+            infoPanel.style.display = 'block';
+            captureControls.style.display = 'none';
+            
+            updateSelection();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isSelecting) {
+                endX = e.clientX;
+                endY = e.clientY;
+                updateSelection();
+            }
+        });
+        
+        document.addEventListener('mouseup', (e) => {
+            if (isSelecting) {
+                isSelecting = false;
+                const selection = updateSelection();
+                
+                if (selection.width > 10 && selection.height > 10) {
+                    captureControls.style.display = 'flex';
+                } else {
+                    // Reset selection if too small
+                    selectionBox.style.display = 'none';
+                    infoPanel.style.display = 'none';
+                }
+            }
+        });
+        
+        captureBtn.addEventListener('click', async () => {
+            const selection = updateSelection();
+            
+            if (selection.width > 10 && selection.height > 10) {
+                try {
+                    await invoke('capture_region', {
+                        region: {
+                            x: selection.x,
+                            y: selection.y,
+                            width: selection.width,
+                            height: selection.height
+                        }
+                    });
+                    
+                    // Close overlay after successful capture
+                    await invoke('close_overlay_window');
+                } catch (error) {
+                    console.error('Failed to capture region:', error);
+                    alert('キャプチャに失敗しました: ' + error);
+                }
+            }
+        });
+        
+        cancelBtn.addEventListener('click', async () => {
+            await invoke('close_overlay_window');
+        });
+        
+        // ESC key to cancel
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                invoke('close_overlay_window');
+            }
+        });
+    </script>
+</body>
+</html>
